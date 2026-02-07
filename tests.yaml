@@ -1,0 +1,511 @@
+# withenv Test Suite v0.1.0
+#
+# Language-agnostic test cases defining expected behavior.
+# Each test specifies inputs and expected outputs/behaviors.
+#
+# Test runners should:
+# - Create temporary env files as specified
+# - Set up initial environment as specified
+# - Invoke withenv with the given arguments
+# - Verify exit code, stdout, stderr, and environment as specified
+
+version: "0.1.0"
+
+# =============================================================================
+# Environment File Parsing
+# =============================================================================
+
+env_file_parsing:
+  - name: basic key-value
+    env_file: |
+      FOO=bar
+    command: ["printenv", "FOO"]
+    expect:
+      exit_code: 0
+      stdout: "bar\n"
+
+  - name: multiple variables
+    env_file: |
+      FOO=one
+      BAR=two
+      BAZ=three
+    command: ["sh", "-c", "echo $FOO $BAR $BAZ"]
+    expect:
+      exit_code: 0
+      stdout: "one two three\n"
+
+  - name: empty value
+    env_file: |
+      EMPTY=
+    command: ["printenv", "EMPTY"]
+    expect:
+      exit_code: 0
+      stdout: "\n"
+
+  - name: value with spaces
+    env_file: |
+      SPACED=hello world
+    command: ["printenv", "SPACED"]
+    expect:
+      exit_code: 0
+      stdout: "hello world\n"
+
+  - name: double quoted value
+    env_file: |
+      QUOTED="hello world"
+    command: ["printenv", "QUOTED"]
+    expect:
+      exit_code: 0
+      stdout: "hello world\n"
+
+  - name: single quoted value
+    env_file: |
+      SINGLE='hello world'
+    command: ["printenv", "SINGLE"]
+    expect:
+      exit_code: 0
+      stdout: "hello world\n"
+
+  - name: double quotes preserve inner single quotes
+    env_file: |
+      MSG="it's working"
+    command: ["printenv", "MSG"]
+    expect:
+      exit_code: 0
+      stdout: "it's working\n"
+
+  - name: single quotes preserve inner double quotes
+    env_file: |
+      MSG='say "hello"'
+    command: ["printenv", "MSG"]
+    expect:
+      exit_code: 0
+      stdout: "say \"hello\"\n"
+
+  - name: escape newline in double quotes
+    env_file: |
+      MULTI="line1\nline2"
+    command: ["printenv", "MULTI"]
+    expect:
+      exit_code: 0
+      stdout: "line1\nline2\n"
+
+  - name: escape tab in double quotes
+    env_file: |
+      TABBED="col1\tcol2"
+    command: ["printenv", "TABBED"]
+    expect:
+      exit_code: 0
+      stdout: "col1\tcol2\n"
+
+  - name: escaped backslash in double quotes
+    env_file: |
+      PATH_VAL="C:\\Users\\test"
+    command: ["printenv", "PATH_VAL"]
+    expect:
+      exit_code: 0
+      stdout: "C:\\Users\\test\n"
+
+  - name: single quotes are literal (no escapes)
+    env_file: |
+      LITERAL='hello\nworld'
+    command: ["printenv", "LITERAL"]
+    expect:
+      exit_code: 0
+      stdout: "hello\\nworld\n"
+
+  - name: comment lines ignored
+    env_file: |
+      # This is a comment
+      FOO=bar
+      # Another comment
+    command: ["printenv", "FOO"]
+    expect:
+      exit_code: 0
+      stdout: "bar\n"
+
+  - name: empty lines ignored
+    env_file: |
+      FOO=first
+
+      BAR=second
+    command: ["sh", "-c", "echo $FOO $BAR"]
+    expect:
+      exit_code: 0
+      stdout: "first second\n"
+
+  - name: export prefix stripped
+    env_file: |
+      export EXPORTED=value
+    command: ["printenv", "EXPORTED"]
+    expect:
+      exit_code: 0
+      stdout: "value\n"
+
+  - name: inline hash is part of unquoted value
+    env_file: |
+      COLOR=#FF0000
+    command: ["printenv", "COLOR"]
+    expect:
+      exit_code: 0
+      stdout: "#FF0000\n"
+
+  - name: inline hash after space in unquoted value
+    env_file: |
+      NOTE=see below # not a comment
+    command: ["printenv", "NOTE"]
+    expect:
+      exit_code: 0
+      stdout: "see below # not a comment\n"
+
+  - name: whitespace around key trimmed
+    env_file: |
+        PADDED   =value
+    command: ["printenv", "PADDED"]
+    expect:
+      exit_code: 0
+      stdout: "value\n"
+
+  - name: equals sign in value
+    env_file: |
+      EQUATION=1+1=2
+    command: ["printenv", "EQUATION"]
+    expect:
+      exit_code: 0
+      stdout: "1+1=2\n"
+
+# =============================================================================
+# Environment Merging
+# =============================================================================
+
+env_merging:
+  - name: file overrides existing env var
+    initial_env:
+      EXISTING: "original"
+    env_file: |
+      EXISTING=overridden
+    command: ["printenv", "EXISTING"]
+    expect:
+      exit_code: 0
+      stdout: "overridden\n"
+
+  - name: existing env var preserved when not in file
+    initial_env:
+      PRESERVED: "keep me"
+    env_file: |
+      OTHER=value
+    command: ["printenv", "PRESERVED"]
+    expect:
+      exit_code: 0
+      stdout: "keep me\n"
+
+  - name: both file and existing vars available
+    initial_env:
+      FROM_ENV: "env-value"
+    env_file: |
+      FROM_FILE=file-value
+    command: ["sh", "-c", "echo $FROM_ENV $FROM_FILE"]
+    expect:
+      exit_code: 0
+      stdout: "env-value file-value\n"
+
+  - name: empty file value overrides non-empty env
+    initial_env:
+      VAR: "original"
+    env_file: |
+      VAR=
+    command: ["sh", "-c", "echo \"[$VAR]\""]
+    expect:
+      exit_code: 0
+      stdout: "[]\n"
+
+# =============================================================================
+# Options (--help and --version)
+# =============================================================================
+
+options:
+  - name: version flag shows program name first
+    args: ["--version"]
+    expect:
+      exit_code: 0
+      stdout_field_1: "withenv"
+
+  - name: version flag shows version string second
+    args: ["--version"]
+    expect:
+      exit_code: 0
+      stdout_field_2_matches: "^[^ ]+$"  # non-empty, no spaces
+
+  - name: help flag shows synopsis
+    args: ["--help"]
+    expect:
+      exit_code: 0
+      stdout_contains: "ENVFILE"
+      stdout_contains: "COMMAND"
+
+  - name: help flag shows exit codes
+    args: ["--help"]
+    expect:
+      exit_code: 0
+      stdout_contains: "exit"
+
+  - name: short version flag works
+    args: ["-v"]
+    expect:
+      exit_code: 0
+      stdout_field_1: "withenv"
+
+  - name: short help flag works
+    args: ["-h"]
+    expect:
+      exit_code: 0
+      stdout_contains: "ENVFILE"
+
+  - name: version flag in second position passed through
+    env_file: |
+      UNUSED=value
+    command: ["echo", "--version"]
+    expect:
+      exit_code: 0
+      stdout: "--version\n"
+
+  - name: help flag in second position passed through
+    env_file: |
+      UNUSED=value
+    command: ["echo", "--help"]
+    expect:
+      exit_code: 0
+      stdout: "--help\n"
+
+# =============================================================================
+# Argument Passing
+# =============================================================================
+
+argument_passing:
+  - name: single argument to command
+    env_file: |
+      UNUSED=value
+    command: ["echo", "hello"]
+    expect:
+      exit_code: 0
+      stdout: "hello\n"
+
+  - name: multiple arguments to command
+    env_file: |
+      UNUSED=value
+    command: ["echo", "one", "two", "three"]
+    expect:
+      exit_code: 0
+      stdout: "one two three\n"
+
+  - name: arguments with spaces preserved
+    env_file: |
+      UNUSED=value
+    command: ["echo", "hello world", "foo bar"]
+    expect:
+      exit_code: 0
+      stdout: "hello world foo bar\n"
+
+  - name: dash arguments passed through
+    env_file: |
+      UNUSED=value
+    command: ["echo", "-n", "no newline"]
+    expect:
+      exit_code: 0
+      stdout: "no newline"
+
+  - name: double-dash passed through
+    env_file: |
+      UNUSED=value
+    command: ["echo", "--", "after double dash"]
+    expect:
+      exit_code: 0
+      stdout: "-- after double dash\n"
+
+  - name: help flag after command passed through
+    env_file: |
+      UNUSED=value
+    command: ["echo", "--help"]
+    expect:
+      exit_code: 0
+      stdout: "--help\n"
+
+# =============================================================================
+# Exit Code Handling
+# =============================================================================
+
+exit_codes:
+  - name: command exits zero
+    env_file: |
+      UNUSED=value
+    command: ["true"]
+    expect:
+      exit_code: 0
+
+  - name: command exits non-zero
+    env_file: |
+      UNUSED=value
+    command: ["false"]
+    expect:
+      exit_code: 1
+
+  - name: command exits with specific code
+    env_file: |
+      UNUSED=value
+    command: ["sh", "-c", "exit 42"]
+    expect:
+      exit_code: 42
+
+  - name: command not found
+    env_file: |
+      UNUSED=value
+    command: ["nonexistent_command_xyz"]
+    expect:
+      exit_code: 127
+
+# =============================================================================
+# Error Conditions
+# =============================================================================
+
+errors:
+  - name: no arguments
+    args: []
+    expect:
+      exit_code: 10
+      stderr_contains: "usage"
+
+  - name: only env file, no command
+    env_file: |
+      FOO=bar
+    args: ["ENVFILE_PATH"]  # placeholder for actual path
+    expect:
+      exit_code: 10
+      stderr_contains: "command"
+
+  - name: env file not found
+    args: ["nonexistent.env", "echo", "hello"]
+    expect:
+      exit_code: 11
+      stderr_contains: "not found"
+
+  - name: env file is a directory
+    env_file_is_directory: true
+    args: ["ENVFILE_PATH", "echo", "hello"]
+    expect:
+      exit_code: 11
+      stderr_contains: "directory"
+
+# =============================================================================
+# Edge Cases
+# =============================================================================
+
+edge_cases:
+  - name: env file with only comments
+    env_file: |
+      # just a comment
+      # another comment
+    command: ["echo", "ok"]
+    expect:
+      exit_code: 0
+      stdout: "ok\n"
+
+  - name: env file is empty
+    env_file: ""
+    command: ["echo", "ok"]
+    expect:
+      exit_code: 0
+      stdout: "ok\n"
+
+  - name: very long value
+    env_file: |
+      LONG=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    command: ["sh", "-c", "echo ${#LONG}"]
+    expect:
+      exit_code: 0
+      stdout: "100\n"
+
+  - name: unicode in value
+    env_file: |
+      UNICODE=héllo wörld 你好
+    command: ["printenv", "UNICODE"]
+    expect:
+      exit_code: 0
+      stdout: "héllo wörld 你好\n"
+
+  - name: unicode in key
+    env_file: |
+      HÉLLO=world
+    command: ["printenv", "HÉLLO"]
+    expect:
+      exit_code: 0
+      stdout: "world\n"
+
+  - name: key with underscore
+    env_file: |
+      MY_LONG_KEY_NAME=value
+    command: ["printenv", "MY_LONG_KEY_NAME"]
+    expect:
+      exit_code: 0
+      stdout: "value\n"
+
+  - name: key with numbers
+    env_file: |
+      VAR123=value
+    command: ["printenv", "VAR123"]
+    expect:
+      exit_code: 0
+      stdout: "value\n"
+
+  - name: command with env var reference
+    env_file: |
+      GREETING=hello
+    command: ["sh", "-c", "echo $GREETING"]
+    expect:
+      exit_code: 0
+      stdout: "hello\n"
+
+# =============================================================================
+# Malformed Lines
+# =============================================================================
+
+malformed_lines:
+  - name: malformed line warns but continues
+    env_file: |
+      VALID=good
+      this is not valid
+      ALSO_VALID=fine
+    command: ["sh", "-c", "echo $VALID $ALSO_VALID"]
+    expect:
+      exit_code: 0
+      stdout: "good fine\n"
+      stderr_contains: "warning"
+
+  - name: key starting with number is malformed
+    env_file: |
+      123KEY=value
+      VALID=works
+    command: ["printenv", "VALID"]
+    expect:
+      exit_code: 0
+      stdout: "works\n"
+      stderr_contains: "warning"
+
+  - name: key with invalid characters is malformed
+    env_file: |
+      INVALID-KEY=value
+      VALID=works
+    command: ["printenv", "VALID"]
+    expect:
+      exit_code: 0
+      stdout: "works\n"
+      stderr_contains: "warning"
+
+  - name: line with only key no equals is malformed
+    env_file: |
+      JUST_A_KEY
+      VALID=works
+    command: ["printenv", "VALID"]
+    expect:
+      exit_code: 0
+      stdout: "works\n"
+      stderr_contains: "warning"
