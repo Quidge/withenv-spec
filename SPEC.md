@@ -98,15 +98,16 @@ Lines not matching this grammar are **malformed**. Implementations MUST warn to 
 
 1. **Comments**: Lines beginning with `#` (optionally preceded by whitespace) are ignored
 2. **Empty lines**: Blank lines are ignored
-3. **Whitespace**: Leading/trailing whitespace around keys is trimmed
+3. **Whitespace**: Leading/trailing whitespace around keys is trimmed; whitespace at the start of unquoted values is preserved
 4. **Keys**: Must start with a letter or underscore, followed by letters, digits, or underscores. Unicode letters are permitted but may not be portable to all shells.
 5. **Quoting**: Values may be quoted with single (`'`) or double (`"`) quotes
-6. **Escape sequences**: Within double quotes, `\n`, `\t`, `\\`, and `\"` are interpreted
+6. **Escape sequences**: Within double quotes, `\n`, `\r`, `\t`, `\\`, `\"`, and `\'` are interpreted. Only these escapes are interpreted; all others remain literal.
 7. **Single quotes**: Literal strings, no escape interpretation
 8. **Unquoted values**: Trailing whitespace is preserved, inline `#` is part of the value
 9. **Export prefix**: `export KEY=value` is equivalent to `KEY=value`
 10. **Empty values**: `KEY=` sets an empty string
 11. **Multiline**: Double-quoted values may span lines with `\n` or literal newlines
+12. **Quote concatenation**: When a quoted value is followed by additional content, the quoted portion and trailing content are concatenated (e.g., `KEY="hello"world` produces `helloworld`). Mixed quote styles are supported.
 
 ### Examples
 

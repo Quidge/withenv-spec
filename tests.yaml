@@ -82,6 +82,30 @@ env_file_parsing:
       exit_code: 0
       stdout: "say \"hello\"\n"
 
+  - name: content after closing quote concatenated
+    env_file: |
+      KEY="value"extra
+    command: ["printenv", "KEY"]
+    expect:
+      exit_code: 0
+      stdout: "valueextra\n"
+
+  - name: mixed quote styles concatenated
+    env_file: |
+      KEY="hello"' world'
+    command: ["printenv", "KEY"]
+    expect:
+      exit_code: 0
+      stdout: "hello world\n"
+
+  - name: spaces after closing quote concatenated
+    env_file: |
+      KEY="value"  spacebefore
+    command: ["printenv", "KEY"]
+    expect:
+      exit_code: 0
+      stdout: "value  spacebefore\n"
+
   - name: escape newline in double quotes
     env_file: |
       MULTI="line1\nline2"
@@ -105,6 +129,30 @@ env_file_parsing:
     expect:
       exit_code: 0
       stdout: "C:\\Users\\test\n"
+
+  - name: escape carriage return in double quotes
+    env_file: |
+      CRLF="line1\r\nline2"
+    command: ["printenv", "CRLF"]
+    expect:
+      exit_code: 0
+      stdout: "line1\r\nline2\n"
+
+  - name: escape single quote in double quotes
+    env_file: |
+      ESCAPED="it\'s escaped"
+    command: ["printenv", "ESCAPED"]
+    expect:
+      exit_code: 0
+      stdout: "it's escaped\n"
+
+  - name: unknown escape sequence preserved literally
+    env_file: |
+      MSG="hello\xworld"
+    command: ["printenv", "MSG"]
+    expect:
+      exit_code: 0
+      stdout: "hello\\xworld\n"
 
   - name: single quotes are literal (no escapes)
     env_file: |
@@ -165,6 +213,14 @@ env_file_parsing:
     expect:
       exit_code: 0
       stdout: "value\n"
+
+  - name: leading whitespace in unquoted value preserved
+    env_file: |
+      SPACED= leading space
+    command: ["printenv", "SPACED"]
+    expect:
+      exit_code: 0
+      stdout: " leading space\n"
 
   - name: equals sign in value
     env_file: |
