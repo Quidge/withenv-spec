@@ -1,4 +1,4 @@
-# withenv Specification v1.0.1
+# withenv Specification v1.0.2
 
 `withenv` is a command-line utility that executes a program with environment variables loaded from a file.
 
