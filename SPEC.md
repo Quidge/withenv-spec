@@ -115,7 +115,7 @@ Variable references using `${VAR}` syntax are expanded in unquoted and double-qu
 
 #### Syntax
 
-Only the braced form `${VAR}` is supported. The variable name must be a valid key (letter or underscore, followed by letters, digits, or underscores).
+Only the braced form `${VAR}` is supported. The variable name must be a valid key (letter or underscore, followed by letters, digits, or underscores). Unbraced references like `$VAR` are not expanded and remain literal text.
 
 #### Resolution Order
 
