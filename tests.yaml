@@ -1,4 +1,4 @@
-# withenv Test Suite v0.1.0
+# withenv Test Suite v1.1.0
 #
 # Language-agnostic test cases defining expected behavior.
 # Each test specifies inputs and expected outputs/behaviors.
@@ -145,6 +145,14 @@ env_file_parsing:
     expect:
       exit_code: 0
       stdout: "it's escaped\n"
+
+  - name: escape dollar sign in double quotes
+    env_file: |
+      MONEY="\$50"
+    command: ["printenv", "MONEY"]
+    expect:
+      exit_code: 0
+      stdout: "$50\n"
 
   - name: unknown escape sequence preserved literally
     env_file: |
@@ -559,6 +567,237 @@ malformed_lines:
   - name: line with only key no equals is malformed
     env_file: |
       JUST_A_KEY
+      VALID=works
+    command: ["printenv", "VALID"]
+    expect:
+      exit_code: 0
+      stdout: "works\n"
+      stderr_contains: "warning"
+
+# =============================================================================
+# Variable Interpolation
+# =============================================================================
+
+variable_interpolation:
+  # Basic interpolation
+  - name: basic interpolation from earlier variable
+    env_file: |
+      FOO=hello
+      BAR=${FOO}
+    command: ["printenv", "BAR"]
+    expect:
+      exit_code: 0
+      stdout: "hello\n"
+
+  - name: interpolation with suffix
+    env_file: |
+      BASE=/opt/app
+      CONFIG=${BASE}/config
+    command: ["printenv", "CONFIG"]
+    expect:
+      exit_code: 0
+      stdout: "/opt/app/config\n"
+
+  - name: interpolation in double quotes
+    env_file: |
+      FOO=hello
+      BAR="${FOO} world"
+    command: ["printenv", "BAR"]
+    expect:
+      exit_code: 0
+      stdout: "hello world\n"
+
+  - name: multiple interpolations in one value
+    env_file: |
+      FIRST=hello
+      SECOND=world
+      COMBINED=${FIRST} ${SECOND}
+    command: ["printenv", "COMBINED"]
+    expect:
+      exit_code: 0
+      stdout: "hello world\n"
+
+  - name: chained interpolation
+    env_file: |
+      A=one
+      B=${A}
+      C=${B}
+    command: ["printenv", "C"]
+    expect:
+      exit_code: 0
+      stdout: "one\n"
+
+  # Resolution order: file-first, then environment
+  - name: file variable shadows environment
+    initial_env:
+      FOO: "from_env"
+    env_file: |
+      FOO=from_file
+      BAR=${FOO}
+    command: ["printenv", "BAR"]
+    expect:
+      exit_code: 0
+      stdout: "from_file\n"
+
+  - name: environment fallback when not in file
+    initial_env:
+      FROM_ENV: "env_value"
+    env_file: |
+      RESULT=${FROM_ENV}
+    command: ["printenv", "RESULT"]
+    expect:
+      exit_code: 0
+      stdout: "env_value\n"
+
+  - name: self-reference uses environment value
+    initial_env:
+      FOO: "original"
+    env_file: |
+      FOO=${FOO}_suffix
+    command: ["printenv", "FOO"]
+    expect:
+      exit_code: 0
+      stdout: "original_suffix\n"
+
+  # Undefined variables
+  - name: undefined variable expands to empty with warning
+    env_file: |
+      RESULT=${UNDEFINED_VAR}
+    command: ["printenv", "RESULT"]
+    expect:
+      exit_code: 0
+      stdout: "\n"
+      stderr_contains: "warning"
+
+  - name: empty defined variable expands to empty without warning
+    env_file: |
+      EMPTY=
+      RESULT=${EMPTY}
+    command: ["sh", "-c", "printenv RESULT; echo status=$?"]
+    expect:
+      exit_code: 0
+      stdout: "\nstatus=0\n"
+    # Note: no stderr_contains check - should be silent
+
+  # Quoting behavior
+  - name: single quotes prevent interpolation
+    env_file: |
+      FOO=hello
+      LITERAL='${FOO}'
+    command: ["printenv", "LITERAL"]
+    expect:
+      exit_code: 0
+      stdout: "${FOO}\n"
+
+  - name: double quotes allow interpolation
+    env_file: |
+      FOO=hello
+      EXPANDED="${FOO}"
+    command: ["printenv", "EXPANDED"]
+    expect:
+      exit_code: 0
+      stdout: "hello\n"
+
+  - name: unquoted allows interpolation
+    env_file: |
+      FOO=hello
+      EXPANDED=${FOO}
+    command: ["printenv", "EXPANDED"]
+    expect:
+      exit_code: 0
+      stdout: "hello\n"
+
+  # Escaping
+  - name: escaped dollar in double quotes
+    env_file: |
+      PRICE="\$100"
+    command: ["printenv", "PRICE"]
+    expect:
+      exit_code: 0
+      stdout: "$100\n"
+
+  - name: escaped dollar prevents interpolation
+    env_file: |
+      FOO=hello
+      LITERAL="\${FOO}"
+    command: ["printenv", "LITERAL"]
+    expect:
+      exit_code: 0
+      stdout: "${FOO}\n"
+
+  # Concatenation with interpolation
+  - name: interpolation before concatenation
+    env_file: |
+      FOO=hello
+      RESULT="${FOO}"world
+    command: ["printenv", "RESULT"]
+    expect:
+      exit_code: 0
+      stdout: "helloworld\n"
+
+  - name: interpolation in mixed quote concatenation
+    env_file: |
+      FOO=hello
+      RESULT="${FOO}"' world'
+    command: ["printenv", "RESULT"]
+    expect:
+      exit_code: 0
+      stdout: "hello world\n"
+
+  # Malformed interpolation syntax
+  - name: unclosed brace is malformed
+    env_file: |
+      BAD=${FOO
+      VALID=works
+    command: ["printenv", "VALID"]
+    expect:
+      exit_code: 0
+      stdout: "works\n"
+      stderr_contains: "warning"
+
+  - name: empty braces is malformed
+    env_file: |
+      BAD=${}
+      VALID=works
+    command: ["printenv", "VALID"]
+    expect:
+      exit_code: 0
+      stdout: "works\n"
+      stderr_contains: "warning"
+
+  - name: invalid variable name in braces is malformed
+    env_file: |
+      BAD=${123invalid}
+      VALID=works
+    command: ["printenv", "VALID"]
+    expect:
+      exit_code: 0
+      stdout: "works\n"
+      stderr_contains: "warning"
+
+  - name: hyphen in variable name is malformed
+    env_file: |
+      BAD=${foo-bar}
+      VALID=works
+    command: ["printenv", "VALID"]
+    expect:
+      exit_code: 0
+      stdout: "works\n"
+      stderr_contains: "warning"
+
+  - name: default value syntax is malformed
+    env_file: |
+      BAD=${FOO:-default}
+      VALID=works
+    command: ["printenv", "VALID"]
+    expect:
+      exit_code: 0
+      stdout: "works\n"
+      stderr_contains: "warning"
+
+  - name: alternate value syntax is malformed
+    env_file: |
+      BAD=${FOO:+alternate}
       VALID=works
     command: ["printenv", "VALID"]
     expect:

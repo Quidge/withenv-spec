@@ -1,4 +1,4 @@
-# withenv Specification v1.0.2
+# withenv Specification v1.1.0
 
 `withenv` is a command-line utility that executes a program with environment variables loaded from a file.
 
@@ -101,13 +101,54 @@ Lines not matching this grammar are **malformed**. Implementations MUST warn to 
 3. **Whitespace**: Leading/trailing whitespace around keys is trimmed; whitespace at the start of unquoted values is preserved
 4. **Keys**: Must start with a letter or underscore, followed by letters, digits, or underscores. Unicode letters are permitted but may not be portable to all shells.
 5. **Quoting**: Values may be quoted with single (`'`) or double (`"`) quotes
-6. **Escape sequences**: Within double quotes, `\n`, `\r`, `\t`, `\\`, `\"`, and `\'` are interpreted. Only these escapes are interpreted; all others remain literal.
+6. **Escape sequences**: Within double quotes, `\n`, `\r`, `\t`, `\\`, `\"`, `\'`, and `\$` are interpreted. Only these escapes are interpreted; all others remain literal.
 7. **Single quotes**: Literal strings, no escape interpretation
 8. **Unquoted values**: Trailing whitespace is preserved, inline `#` is part of the value
 9. **Export prefix**: `export KEY=value` is equivalent to `KEY=value`
 10. **Empty values**: `KEY=` sets an empty string
 11. **Multiline**: Double-quoted values may span lines with `\n` or literal newlines
 12. **Quote concatenation**: When a quoted value is followed by additional content, the quoted portion and trailing content are concatenated (e.g., `KEY="hello"world` produces `helloworld`). Mixed quote styles are supported.
+
+### Variable Interpolation
+
+Variable references using `${VAR}` syntax are expanded in unquoted and double-quoted values.
+
+#### Syntax
+
+Only the braced form `${VAR}` is supported. The variable name must be a valid key (letter or underscore, followed by letters, digits, or underscores).
+
+#### Resolution Order
+
+1. **File-first**: If `VAR` was defined earlier in the same file, use that value
+2. **Environment fallback**: Otherwise, use the value from the process environment
+3. **Undefined**: If not found in either, emit a warning to stderr and expand to empty string
+
+#### Quoting Behavior
+
+- **Double quotes**: Interpolation occurs (`"${VAR}"` expands)
+- **Single quotes**: No interpolation (`'${VAR}'` is literal)
+- **Unquoted**: Interpolation occurs (`${VAR}` expands)
+
+#### Escaping
+
+Within double quotes, `\$` produces a literal `$` character, preventing interpolation.
+
+#### Timing
+
+Interpolation occurs during value parsing, before quote concatenation. This means `"${FOO}"bar` first expands `${FOO}`, then concatenates with `bar`.
+
+#### Self-Reference
+
+A variable may reference itself: `FOO=${FOO}_suffix`. Since `FOO` has no prior definition in the file, the environment value is used.
+
+#### Malformed References
+
+The following are malformed and cause the entire line to be skipped with a warning:
+
+- Unclosed brace: `${FOO`
+- Empty braces: `${}`
+- Invalid variable name: `${123bad}`, `${foo-bar}`
+- Unsupported syntax: `${VAR:-default}`, `${VAR:+alt}`, etc.
 
 ### Examples
 
@@ -128,6 +169,24 @@ EMPTY_VAR=
 
 # Export syntax (equivalent to without export)
 export API_KEY=secret123
+
+# Variable interpolation
+BASE_URL=https://api.example.com
+USERS_ENDPOINT=${BASE_URL}/users
+POSTS_ENDPOINT="${BASE_URL}/posts"
+
+# Reuse tokens across variable names
+DO_PAT=dop_v1_abc123
+TF_VAR_do_token=${DO_PAT}
+
+# Reference environment variable (HOME from process environment)
+CONFIG_DIR=${HOME}/.myapp
+
+# Literal dollar sign (escaped)
+PRICE="\$100"
+
+# Literal interpolation syntax (single quotes)
+TEMPLATE='${NOT_EXPANDED}'
 ```
 
 ## Error Conditions
@@ -164,7 +223,7 @@ export API_KEY=secret123
 
 ## Non-Goals
 
-- Variable interpolation (`${VAR}` expansion)
 - Sourcing multiple files
 - Watching files for changes
 - Acting as a process supervisor
+- Advanced substitution syntax (`${VAR:-default}`, `${VAR:+alt}`, etc.)
