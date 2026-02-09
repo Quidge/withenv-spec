@@ -9,7 +9,7 @@
 # - Invoke withenv with the given arguments
 # - Verify exit code, stdout, stderr, and environment as specified
 
-version: "0.1.0"
+version: "1.1.0"
 
 # =============================================================================
 # Environment File Parsing
@@ -724,6 +724,15 @@ variable_interpolation:
     expect:
       exit_code: 0
       stdout: "${FOO}\n"
+
+  - name: bare dollar sign without braces is literal
+    env_file: |
+      FOO=hello
+      LITERAL=$FOO
+    command: ["printenv", "LITERAL"]
+    expect:
+      exit_code: 0
+      stdout: "$FOO\n"
 
   # Concatenation with interpolation
   - name: interpolation before concatenation
